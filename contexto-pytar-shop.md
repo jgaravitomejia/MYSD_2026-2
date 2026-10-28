@@ -6,7 +6,7 @@
 - **Materia:** Modelos y Servicios de Datos (MYSD)
 - **Grupo:** MYSD-3
 - **Profesor:** Juan Sebastián Frasica
-- **Integrantes:** JULIÁN GARAVITO y ISABELLA FONSECA
+- **Integrantes:** JUAN GARAVITO y LAILA ROMANO
 - **Motor de base de datos:** PostgreSQL (cambiado de MySQL por instrucción del profesor)
 - **Herramienta de modelado:** Astah
 - **Alcance:** SOLO BASE DE DATOS. No hay interfaz web, no hay GUI, no hay pasarelas de pago.
