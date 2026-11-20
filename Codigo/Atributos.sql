@@ -1,0 +1,56 @@
+-- Atributos
+-- Stock no puede ser negativo
+ALTER TABLE PRODUCTOS
+    ADD CONSTRAINT CK_PRODUCTOS_STOCK
+    CHECK (stock >= 0);
+
+-- Precio de referencia siempre positivo
+ALTER TABLE PRODUCTOS
+    ADD CONSTRAINT CK_PRODUCTOS_PRECIOREFERENCIA
+    CHECK (precio_referencia > 0);
+
+-- Cantidades en detalles siempre positivas
+ALTER TABLE DETALLESDECOMPRAS
+    ADD CONSTRAINT CK_DETALLESCOMPRA_CANTIDAD
+    CHECK (cantidad > 0);
+
+ALTER TABLE DETALLESDEVENTAS
+    ADD CONSTRAINT CK_DETALLESVENTA_CANTIDAD
+    CHECK (cantidad > 0);
+
+-- Precios en detalles siempre positivos
+ALTER TABLE DETALLESDECOMPRAS
+    ADD CONSTRAINT CK_DETALLESCOMPRA_PRECIOCOMPRA
+    CHECK (precio_compra > 0);
+
+ALTER TABLE DETALLESDEVENTAS
+    ADD CONSTRAINT CK_DETALLESVENTA_PRECIOVENTA
+    CHECK (precio_venta > 0);
+
+-- Descuento no puede ser negativo
+ALTER TABLE DETALLESDEVENTAS
+    ADD CONSTRAINT CK_DETALLESVENTA_DESCUENTO
+    CHECK (descuento >= 0);
+
+-- Total de factura siempre positivo
+ALTER TABLE FACTURAS
+    ADD CONSTRAINT CK_FACTURAS_TOTAL
+    CHECK (total > 0);
+
+-- Telefono con longitud minima de 7 digitos
+ALTER TABLE CLIENTES
+    ADD CONSTRAINT CK_CLIENTES_TELEFONO
+    CHECK (LENGTH(telefono) >= 7);
+
+ALTER TABLE PROVEEDORES
+    ADD CONSTRAINT CK_PROVEEDORES_TELEFONO
+    CHECK (LENGTH(telefono) >= 7);
+
+-- Correo debe contener @ (TTCorreo)
+ALTER TABLE CLIENTES
+    ADD CONSTRAINT CK_CLIENTES_CORREO
+    CHECK (correo LIKE '%@%.%');
+
+ALTER TABLE PROVEEDORES
+    ADD CONSTRAINT CK_PROVEEDORES_CORREO
+    CHECK (correo LIKE '%@%.%');
