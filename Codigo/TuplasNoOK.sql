@@ -7,7 +7,7 @@ INSERT INTO PRODUCTOS (id_producto, nombre, descripcion, precio_referencia, marc
     VALUES (91101, 'Gorra Roja', NULL, 30000, 'Nike', 20, 'Agotado', '2026-05-02 11:00:00', NULL);
 
 -- 'Disponible' pero sin unidades                                --
-CK_PRODUCTOS_ESTADOVSSTOCK
+--CK_PRODUCTOS_ESTADOVSSTOCK
 INSERT INTO PRODUCTOS (id_producto, nombre, descripcion, precio_referencia, marca, stock, estado, fecha_ingreso, imagen_url)
     VALUES (91102, 'Gorra Azul', NULL, 30000, 'Nike', 0, 'Disponible', '2026-05-02 11:00:00', NULL);
 
