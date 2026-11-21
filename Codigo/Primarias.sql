@@ -29,7 +29,7 @@ ALTER TABLE ACCESORIOS
 ALTER TABLE COMPRAS
     ADD CONSTRAINT PK_COMPRAS PRIMARY KEY (id_compra);
 
--- Tabla intermedia DetalleCrompa, llave compuesta
+-- Tabla intermedia DetalleCompra, llave compuesta
 ALTER TABLE DETALLESDECOMPRAS
     ADD CONSTRAINT PK_DETALLESDECOMPRAS PRIMARY KEY (id_compra, id_producto);
 
