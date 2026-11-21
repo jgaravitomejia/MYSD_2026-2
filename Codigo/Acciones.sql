@@ -1,44 +1,93 @@
---AccionesOK
+--Acciones
 
+-- Si se elimina un cliente (solo es posible si no tiene ventas), sus ubicaciones se eliminan con el
+ALTER TABLE UBICACIONES
+    DROP CONSTRAINT FK_UBICACIONES_CLIENTES,
+    ADD CONSTRAINT FK_UBICACIONES_CLIENTES FOREIGN KEY (id_cliente)
+    REFERENCES CLIENTES (id_cliente) ON DELETE CASCADE;
 
--- Prueba 1: CASCADE 
--- Al borrar la venta, sus detalles se borran solos.
-INSERT INTO CLIENTES (id_cliente, nombre, telefono, correo, fecha_registro, notas)
-    VALUES (91010, 'Cliente Cascade', '3001110001', 'cascade91010@mail.com', '2026-05-10 09:00:00', NULL);
+-- La ubicacion del proveedor es opcional: si se elimina, el proveedor queda sin ubicacion
+ALTER TABLE PROVEEDORES
+    DROP CONSTRAINT FK_PROVEEDORES_UBICACIONES,
+    ADD CONSTRAINT FK_PROVEEDORES_UBICACIONES FOREIGN KEY (id_ubicacion)
+    REFERENCES UBICACIONES (id_ubicacion) ON DELETE SET NULL;
 
-INSERT INTO PRODUCTOS (id_producto, nombre, descripcion, precio_referencia, marca, stock, estado, fecha_ingreso, imagen_url)
-    VALUES (91010, 'Producto Cascade', NULL, 50000.00, 'Zara', 10, 'Disponible', '2026-05-10 09:00:00', NULL);
+-- Si se elimina un producto (solo es posible si no se ha comprado ni vendido), su subtipo se elimina con el
+ALTER TABLE ROPA
+    DROP CONSTRAINT FK_ROPA_PRODUCTOS,
+    ADD CONSTRAINT FK_ROPA_PRODUCTOS FOREIGN KEY (id_producto)
+    REFERENCES PRODUCTOS (id_producto) ON DELETE CASCADE;
 
-INSERT INTO VENTAS (id_venta, fecha_venta, metodo_pago, estado_venta, medio_entrega, observaciones, id_cliente)
-    VALUES (91010, '2026-05-10 10:00:00', 'Efectivo', 'Completada', 'Domicilio', NULL, 91010);
+ALTER TABLE CALZADO
+    DROP CONSTRAINT FK_CALZADO_PRODUCTOS,
+    ADD CONSTRAINT FK_CALZADO_PRODUCTOS FOREIGN KEY (id_producto)
+    REFERENCES PRODUCTOS (id_producto) ON DELETE CASCADE;
 
-INSERT INTO DETALLESDEVENTAS (id_venta, id_producto, cantidad, precio_venta, descuento)
-    VALUES (91010, 91010, 2, 50000.00, NULL);
+ALTER TABLE ACCESORIOS
+    DROP CONSTRAINT FK_ACCESORIOS_PRODUCTOS,
+    ADD CONSTRAINT FK_ACCESORIOS_PRODUCTOS FOREIGN KEY (id_producto)
+    REFERENCES PRODUCTOS (id_producto) ON DELETE CASCADE;
 
--- Accion: al borrar la venta, el detalle se va con ella (CASCADE)
-DELETE FROM VENTAS WHERE id_venta = 91010;
---SELECT * FROM DETALLESDEVENTAS WHERE id_venta = 91010; --verificar que aparezca 0 filas
+-- No se puede eliminar un proveedor al que se le hayan hecho compras
+ALTER TABLE COMPRAS
+    DROP CONSTRAINT FK_COMPRAS_PROVEEDORES,
+    ADD CONSTRAINT FK_COMPRAS_PROVEEDORES FOREIGN KEY (id_proveedor)
+    REFERENCES PROVEEDORES (id_proveedor) ON DELETE RESTRICT;
 
+-- Las compras no se eliminan, se cancelan: no se puede borrar una compra que tenga productos
+ALTER TABLE DETALLESDECOMPRAS
+    DROP CONSTRAINT FK_DETALLESCOMPRA_COMPRAS,
+    ADD CONSTRAINT FK_DETALLESCOMPRA_COMPRAS FOREIGN KEY (id_compra)
+    REFERENCES COMPRAS (id_compra) ON DELETE RESTRICT;
 
---Prueba 2: SET NULL
--- Al borrar la ubicacion, el cliente sigue existiendo pero sin ubicacion.
-INSERT INTO UBICACIONES (id_ubicacion, calle, barrio, ciudad, departamento, codigo_postal, es_principal)
-    VALUES (91020, 'Calle 50 #20-30', 'Chapinero', 'Bogota', 'Cundinamarca', '110111', true);
+-- No se puede eliminar un producto que ya se haya comprado
+ALTER TABLE DETALLESDECOMPRAS
+    DROP CONSTRAINT FK_DETALLESCOMPRA_PRODUCTOS,
+    ADD CONSTRAINT FK_DETALLESCOMPRA_PRODUCTOS FOREIGN KEY (id_producto)
+    REFERENCES PRODUCTOS (id_producto) ON DELETE RESTRICT;
 
-INSERT INTO CLIENTES (id_cliente, nombre, telefono, correo, fecha_registro, notas, id_ubicacion)
-    VALUES (91020, 'Cliente SetNull', '3002220002', 'setnull91020@mail.com', '2026-05-10 09:00:00', NULL, 91020);
+-- No se puede eliminar un cliente que tenga ventas registradas
+ALTER TABLE VENTAS
+    DROP CONSTRAINT FK_VENTAS_CLIENTES,
+    ADD CONSTRAINT FK_VENTAS_CLIENTES FOREIGN KEY (id_cliente)
+    REFERENCES CLIENTES (id_cliente) ON DELETE RESTRICT;
 
--- Accion: al borrar la ubicacion, el cliente queda con id_ubicacion = NULL (SET NULL)
-DELETE FROM UBICACIONES WHERE id_ubicacion = 91020;
---SELECT id_cliente, id_ubicacion FROM CLIENTES WHERE id_cliente = 91020; --verificacion, el cliente existe y su id_ubicacion aparece en NULL
+-- No se puede eliminar una ubicacion que ya se uso en una venta
+ALTER TABLE VENTAS
+    DROP CONSTRAINT FK_VENTAS_UBICACIONES,
+    ADD CONSTRAINT FK_VENTAS_UBICACIONES FOREIGN KEY (id_ubicacion)
+    REFERENCES UBICACIONES (id_ubicacion) ON DELETE RESTRICT;
 
+-- Las ventas no se eliminan, se cancelan: no se puede borrar una venta que tenga productos
+ALTER TABLE DETALLESDEVENTAS
+    DROP CONSTRAINT FK_DETALLESVENTA_VENTAS,
+    ADD CONSTRAINT FK_DETALLESVENTA_VENTAS FOREIGN KEY (id_venta)
+    REFERENCES VENTAS (id_venta) ON DELETE RESTRICT;
 
+-- No se puede eliminar un producto que ya se haya vendido
+ALTER TABLE DETALLESDEVENTAS
+    DROP CONSTRAINT FK_DETALLESVENTA_PRODUCTOS,
+    ADD CONSTRAINT FK_DETALLESVENTA_PRODUCTOS FOREIGN KEY (id_producto)
+    REFERENCES PRODUCTOS (id_producto) ON DELETE RESTRICT;
 
--- Prueba 3: RESTRICT
--- Un cliente SIN ventas si se puede borrar (RESTRICT solo bloquea si hay hijos).
-INSERT INTO CLIENTES (id_cliente, nombre, telefono, correo, fecha_registro, notas)
-    VALUES (91030, 'Cliente SinVentas', '3003330003', 'sinventas91030@mail.com', '2026-05-10 09:00:00', NULL);
+-- Si se elimina una factura (solo es posible si no esta pagada), su subtipo se elimina con ella
+ALTER TABLE FACTURASVENTA
+    DROP CONSTRAINT FK_FACTURASVENTA_FACTURAS,
+    ADD CONSTRAINT FK_FACTURASVENTA_FACTURAS FOREIGN KEY (id_factura)
+    REFERENCES FACTURAS (id_factura) ON DELETE CASCADE;
 
--- Accion: como no tiene ventas, el borrado pasa sin problema
-DELETE FROM CLIENTES WHERE id_cliente = 91030;
---SELECT * FROM CLIENTES WHERE id_cliente = 91030;  --verificar que no haya filas
+ALTER TABLE FACTURASCOMPRA
+    DROP CONSTRAINT FK_FACTURASCOMPRA_FACTURAS,
+    ADD CONSTRAINT FK_FACTURASCOMPRA_FACTURAS FOREIGN KEY (id_factura)
+    REFERENCES FACTURAS (id_factura) ON DELETE CASCADE;
+
+-- No se puede eliminar una venta o una compra que ya tenga factura
+ALTER TABLE FACTURASVENTA
+    DROP CONSTRAINT FK_FACTURASVENTA_VENTAS,
+    ADD CONSTRAINT FK_FACTURASVENTA_VENTAS FOREIGN KEY (id_venta)
+    REFERENCES VENTAS (id_venta) ON DELETE RESTRICT;
+
+ALTER TABLE FACTURASCOMPRA
+    DROP CONSTRAINT FK_FACTURASCOMPRA_COMPRAS,
+    ADD CONSTRAINT FK_FACTURASCOMPRA_COMPRAS FOREIGN KEY (id_compra)
+    REFERENCES COMPRAS (id_compra) ON DELETE RESTRICT;
