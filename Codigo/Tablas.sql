@@ -5,10 +5,9 @@ CREATE TABLE CLIENTES(
     id_cliente      INTEGER         NOT NULL,
     nombre          VARCHAR(50)     NOT NULL,
     telefono        VARCHAR(15)     NOT NULL,
-    correo          VARCHAR(100)    NULL,
+    correo          VARCHAR(100)    NULL, -- UK
     fecha_registro  TIMESTAMP       NOT NULL,
-    notas           VARCHAR(200)    NULL,
-    id_ubicacion    INTEGER         NULL   -- FK -> ubicacion
+    notas           VARCHAR(200)    NULL
 );
 
 -- Tablas. CRUD: Proveedores
@@ -16,12 +15,13 @@ CREATE TABLE PROVEEDORES(
     id_proveedor    INTEGER         NOT NULL,
     nombre          VARCHAR(100)    NOT NULL,
     telefono        VARCHAR(15)     NOT NULL,
-    correo          VARCHAR(100)    NULL,
+    correo          VARCHAR(100)    NULL, -- UK
     fecha_registro  TIMESTAMP       NOT NULL,
-    id_ubicacion    INTEGER         NULL    -- FK -> ubicacion
+    id_ubicacion    INTEGER         NULL        -- FK -> UBICACIONES (UK: maximo un proveedor por ubicacion)
 );
 
 -- Tablas. CRUD: Ubicaciones
+-- Un cliente puede tener varias ubicaciones; cada una dice de que cliente es
 CREATE TABLE UBICACIONES(
     id_ubicacion    INTEGER         NOT NULL,
     calle           VARCHAR(50)     NOT NULL,
@@ -29,7 +29,8 @@ CREATE TABLE UBICACIONES(
     ciudad          VARCHAR(50)     NOT NULL,
     departamento    VARCHAR(50)     NOT NULL,
     codigo_postal   VARCHAR(10)     NULL,
-    es_principal    BOOLEAN         NULL
+    es_principal    BOOLEAN         NOT NULL    DEFAULT FALSE,
+    id_cliente      INTEGER         NULL        -- FK -> CLIENTES (NULL si es la ubicacion de un proveedor)
 );
 
 -- Tablas. CRUD: Productos
@@ -46,7 +47,7 @@ CREATE TABLE PRODUCTOS(
 );
 
 CREATE TABLE ROPA(
-    id_producto     INTEGER         NOT NULL,   
+    id_producto     INTEGER         NOT NULL,   -- PK + FK -> PRODUCTOS
     talla           VARCHAR(5)      NOT NULL,
     genero          VARCHAR(10)     NOT NULL,
     categoria_ropa  VARCHAR(30)     NOT NULL,
@@ -54,15 +55,15 @@ CREATE TABLE ROPA(
 );
 
 CREATE TABLE CALZADO(
-    id_producto         INTEGER         NOT NULL,   
-    talla               NUMERIC(4,1)    NOT NULL,
+    id_producto         INTEGER         NOT NULL,   -- PK + FK -> PRODUCTOS
+    talla               INTEGER         NOT NULL,
     genero              VARCHAR(10)     NOT NULL,
     categoria_calzado   VARCHAR(30)     NOT NULL,
     material            VARCHAR(50)     NULL
 );
 
 CREATE TABLE ACCESORIOS(
-    id_producto     INTEGER         NOT NULL,   
+    id_producto     INTEGER         NOT NULL,   -- PK + FK -> PRODUCTOS
     categoria       VARCHAR(30)     NOT NULL,
     material        VARCHAR(50)     NULL,
     dimensiones     VARCHAR(50)     NULL
@@ -70,16 +71,16 @@ CREATE TABLE ACCESORIOS(
 
 -- Tablas. CRUD: Compras
 CREATE TABLE COMPRAS(
-    id_compra              INTEGER         NOT NULL,
+    id_compra       INTEGER         NOT NULL,
     fecha_compra    TIMESTAMP       NOT NULL,
     estado_compra   VARCHAR(20)     NOT NULL,
     observacion     VARCHAR(200)    NULL,
-    id_proveedor    INTEGER         NOT NULL    
+    id_proveedor    INTEGER         NOT NULL    -- FK -> PROVEEDORES
 );
 
 CREATE TABLE DETALLESDECOMPRAS(
-    id_compra       INTEGER         NOT NULL,   
-    id_producto     INTEGER         NOT NULL,   
+    id_compra       INTEGER         NOT NULL,   -- PK + FK -> COMPRAS
+    id_producto     INTEGER         NOT NULL,   -- PK + FK -> PRODUCTOS
     cantidad        INTEGER         NOT NULL,
     precio_compra   NUMERIC(12,2)   NOT NULL
 );
@@ -92,19 +93,19 @@ CREATE TABLE VENTAS(
     estado_venta    VARCHAR(20)     NOT NULL,
     medio_entrega   VARCHAR(30)     NOT NULL,
     observaciones   VARCHAR(200)    NULL,
-    id_cliente      INTEGER         NOT NULL    
+    id_cliente      INTEGER         NOT NULL,   -- FK -> CLIENTES
+    id_ubicacion    INTEGER         NOT NULL    -- FK -> UBICACIONES (direccion de entrega)
 );
 
 CREATE TABLE DETALLESDEVENTAS(
-    id_venta        INTEGER         NOT NULL,   
-    id_producto     INTEGER         NOT NULL,   
+    id_venta        INTEGER         NOT NULL,   -- PK + FK -> VENTAS
+    id_producto     INTEGER         NOT NULL,   -- PK + FK -> PRODUCTOS
     cantidad        INTEGER         NOT NULL,
     precio_venta    NUMERIC(12,2)   NOT NULL,
     descuento       NUMERIC(12,2)   NULL
 );
 
 -- Tablas. CRUD: Facturas
--- Nota: en el diagrama estado_factura aparece con tipo 'Venta', es un typo. El tipo correcto es TEstadoFactura.
 CREATE TABLE FACTURAS(
     id_factura      INTEGER         NOT NULL,
     fecha_emision   TIMESTAMP       NOT NULL,
@@ -115,12 +116,12 @@ CREATE TABLE FACTURAS(
 
 CREATE TABLE FACTURASVENTA(
     id_factura      INTEGER         NOT NULL,   -- PK + FK -> FACTURAS
-    id_venta        INTEGER         NOT NULL,   -- FK -> VENTAS (UK: una venta genera una factura)
+    id_venta        INTEGER         NOT NULL,   -- UK + FK -> VENTAS (una venta tiene maximo una factura)
     numero_guia     VARCHAR(30)     NULL
 );
 
 CREATE TABLE FACTURASCOMPRA(
     id_factura      INTEGER         NOT NULL,   -- PK + FK -> FACTURAS
-    id_compra       INTEGER         NOT NULL,   -- FK -> COMPRAS (UK: una compra genera una factura)
+    id_compra       INTEGER         NOT NULL,   -- UK + FK -> COMPRAS (una compra tiene maximo una factura)
     numero_remision VARCHAR(30)     NULL
 );

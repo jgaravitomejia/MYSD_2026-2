@@ -1,62 +1,56 @@
 """
-Generador de datos de prueba para Pytar-Shop.
-Genera sentencias INSERT de SQL para poblar la base de datos.
+Generador de datos de prueba para Pytar-Shop (PoblarOK).
 
-Escala aproximada con n=500 clientes:
-  UBICACIONES       ~650
-  CLIENTES          ~500
-  PROVEEDORES        ~50
-  PRODUCTOS        ~1000
-  ROPA              ~350   (subclase)
-  CALZADO           ~300   (subclase)
-  ACCESORIOS        ~350   (subclase)
-  COMPRAS           ~166
-  DETALLESDECOMPRAS ~650
-  VENTAS           ~2000
-  DETALLESDEVENTAS ~3500
-  FACTURAS         ~2166
-  FACTURASVENTA    ~2000
-  FACTURASCOMPRA    ~166
-  ─────────────────────
-  TOTAL           ~13 848 filas
+Genera sentencias INSERT coherentes con las reglas del negocio:
+  - Cada cliente tiene de 1 a 3 ubicaciones y exactamente una principal.
+  - Algunos proveedores tienen ubicacion (maximo una, sin cliente).
+  - Toda venta se entrega en una ubicacion de su propio cliente.
+  - Las fechas son coherentes: registro del cliente <= venta,
+    ingreso del producto <= compra <= venta.
+  - El stock final de cada producto = unidades compradas (no canceladas)
+    - unidades vendidas (no canceladas); nunca se vende mas de lo que hay.
+  - Estados validos: ventas Pendiente / Completada / Cancelada,
+    compras Recibida / Cancelada.
+  - Tallas de calzado enteras y validas segun el genero.
+  - Facturas solo de ventas completadas y compras recibidas, una por
+    transaccion, con el total calculado a partir de sus detalles.
+
+Uso (desde la carpeta Codigo):
+    py Poblar_PytarShop.py > PoblarOK.sql
+    py Poblar_PytarShop.py 625 > PoblarOK.sql     (625 = cantidad de clientes)
+
+Con 625 clientes (valor por defecto) se generan 10 025 filas en total.
+Los mensajes informativos salen por la consola (stderr), NO dentro del .sql.
 """
 
 import random
 import sys
+from datetime import datetime, timedelta
+
 sys.stdout.reconfigure(encoding='utf-8')
-from dataclasses import dataclass
-from typing import List, Set
+
+SEMILLA = 2026                      # misma semilla = mismos datos cada vez
+HOY = datetime(2026, 11, 21, 12, 0, 0)
+INICIO = datetime(2025, 1, 1, 8, 0, 0)
 
 
 # ──────────────────────────────────────────────────────────────
-#  Configuración
+#  Configuracion (todo escala a partir del numero de clientes)
 # ──────────────────────────────────────────────────────────────
-@dataclass
-class DatabaseConfig:
-    num_clientes: int
-
-    @property
-    def num_proveedores(self) -> int:
-        return max(10, self.num_clientes // 10)
-
-    @property
-    def num_productos(self) -> int:
-        return self.num_clientes * 2
-
-    @property
-    def num_compras(self) -> int:
-        return max(50, self.num_clientes // 3)
-
-    @property
-    def num_ventas(self) -> int:
-        return self.num_clientes * 4
+class Config:
+    def __init__(self, num_clientes: int):
+        self.num_clientes = num_clientes
+        self.num_proveedores = max(10, num_clientes // 20)
+        self.num_productos = max(50, (num_clientes * 5) // 6)
+        self.num_compras = max(30, num_clientes // 3)
+        self.num_ventas = num_clientes * 2
 
 
 # ──────────────────────────────────────────────────────────────
-#  Catálogos de datos aleatorios
+#  Catalogos (los valores respetan los tipos de Dominios.sql)
 # ──────────────────────────────────────────────────────────────
 class Catalogos:
-    NOMBRES_COMPLETOS = [
+    NOMBRES = [
         "Sofia Garcia", "Valentina Rodriguez", "Isabella Martinez", "Camila Lopez",
         "Daniela Gonzalez", "Laura Perez", "Mariana Hernandez", "Paula Ramirez",
         "Andrea Torres", "Carolina Flores", "Santiago Vargas", "Sebastian Castro",
@@ -69,448 +63,405 @@ class Catalogos:
         "Isabel Cardona", "Marcela Florez", "Silvia Medina", "Ana Rivera",
         "Mario Cortes", "Hector Marin", "Alberto Jimenez", "Roberto Muñoz",
         "Ernesto Romero", "Ivan Herrera", "Oscar Valencia", "Victor Quintero",
-        "Jaime Giraldo", "Andres Morales"
+        "Jaime Giraldo", "Andres Morales",
     ]
 
-    NOMBRES_PROVEEDORES = [
+    PROVEEDORES = [
         "Distribuciones Moda S.A.", "Textiles del Valle", "Calzado Express Ltda.",
         "Accesorios Premium Co.", "Importadora Fashion", "Confecciones Bogota",
         "Cuero y Estilo S.A.S.", "Sport Wear Colombia", "Moda Infantil S.A.",
         "Global Textiles", "Industrias Ropa Ltda.", "Calzatodo Mayoristas",
-        "Accesorios del Norte", "Modas y Tendencias", "Fabricantes Asociados S.A."
+        "Accesorios del Norte", "Modas y Tendencias", "Fabricantes Asociados S.A.",
     ]
 
-    CALLES_TIPO = ["Calle", "Carrera", "Avenida", "Transversal", "Diagonal"]
-
-    BARRIOS = [
-        "Chapinero", "Suba", "Fontibon", "Kennedy", "Usaquen", "Bosa",
-        "Engativa", "Teusaquillo", "Rafael Uribe", "Antonio Narino",
-        "Laureles", "El Poblado", "Belen", "Estadio", "Conquistadores",
-        "La Castellana", "Santa Teresita", "Chicala", "Cedritos", "Niza"
-    ]
-
-    CIUDADES_DPTO = [
-        ("Bogota", "Cundinamarca"),
-        ("Medellin", "Antioquia"),
-        ("Cali", "Valle del Cauca"),
-        ("Barranquilla", "Atlantico"),
-        ("Bucaramanga", "Santander"),
-        ("Pereira", "Risaralda"),
-        ("Manizales", "Caldas"),
-        ("Cartagena", "Bolivar"),
-    ]
+    CALLES = ["Calle", "Carrera", "Avenida", "Transversal", "Diagonal"]
+    BARRIOS = ["Chapinero", "Suba", "Fontibon", "Kennedy", "Usaquen", "Bosa",
+               "Engativa", "Teusaquillo", "Laureles", "El Poblado", "Belen",
+               "Cedritos", "Niza", "Santa Teresita", None]
+    CIUDADES = [("Bogota", "Cundinamarca"), ("Medellin", "Antioquia"),
+                ("Cali", "Valle del Cauca"), ("Barranquilla", "Atlantico"),
+                ("Bucaramanga", "Santander"), ("Pereira", "Risaralda"),
+                ("Manizales", "Caldas"), ("Cartagena", "Bolivar")]
 
     MARCAS_ROPA = ["Zara", "H&M", "Mango", "Pull&Bear", "Bershka",
                    "Studio F", "Armi", "Koaj", "Ela", "Chevignon"]
-
     MARCAS_CALZADO = ["Nike", "Adidas", "Puma", "Reebok", "New Balance",
                       "Vans", "Converse", "Skechers", "Crocs", "Bosi"]
+    MARCAS_ACCESORIO = ["Guess", "Michael Kors", "Coach", "Tommy Hilfiger",
+                        "Arturo Calle", "Velez", "Totto", None]
 
-    MARCAS_ACCESORIO = ["Guess", "Michael Kors", "Coach", "Kate Spade",
-                        "Tommy Hilfiger", "Arturo Calle", "Velez", "Samsonite",
-                        "Totto", None]
-
-    MATERIALES_TELA = ["Algodon", "Poliester", "Lino", "Lycra",
-                       "Viscosa", "Denim", "Lana", "Nylon", None]
-
+    MATERIALES_TELA = ["Algodon", "Poliester", "Lino", "Lycra", "Denim", "Lana", None]
     MATERIALES_CALZADO = ["Cuero genuino", "Cuero sintetico", "Malla sintetica",
-                           "Lona", "Gamuza", "Neopreno", None]
+                          "Lona", "Gamuza", None]
+    MATERIALES_ACCESORIO = ["Cuero genuino", "Cuero sintetico", "Tela", "Metal",
+                            "Canvas", "Nylon", None]
 
-    MATERIALES_ACCESORIO = ["Cuero genuino", "Cuero sintetico", "Tela",
-                             "Plastico duro", "Metal", "Canvas", "Nylon", None]
+    # TRopa, TCalzado, TAccesorio
+    ROPA = {"Camisa": "Camisa", "Blusa": "Blusa", "Pantalon": "Pantalon",
+            "Falda": "Falda", "Vestido": "Vestido", "Chaqueta": "Chaqueta",
+            "Abrigo": "Abrigo", "Sudadera": "Sudadera", "Shorts": "Shorts", "Jean": "Jean"}
+    CALZADO = {"Zapatilla": "Zapatilla", "Botin": "Botin", "Bota": "Bota",
+               "Sandalia": "Sandalia", "Plataforma": "Plataforma",
+               "Moccasin": "Moccasin", "Deportivo": "Tenis deportivo", "Chancla": "Chancla"}
+    ACCESORIO = {"Bolso": "Bolso", "Cartera": "Cartera", "Mochila": "Mochila",
+                 "Joyeria": "Collar", "Pulsera": "Pulsera", "Aretes": "Aretes",
+                 "Anillo": "Anillo", "Cinturon": "Cinturon", "Gorra": "Gorra",
+                 "Gafas": "Gafas de sol", "Reloj": "Reloj", "Billetera": "Billetera"}
+    ESTILOS = ["Clasico", "Urbano", "Casual", "Elegante", "Basico", "Sport", "Vintage"]
 
-    ESTADOS_PRODUCTO = ["Disponible", "Reservado", "Descontinuado"]
+    # TGenero, TTallaRopa, TTallaCalzado (talla segun genero)
+    GENEROS = ["Mujer", "Hombre", "Unisex", "Niño", "Niña"]
+    TALLAS_ROPA_ADULTO = ["XS", "S", "M", "L", "XL", "XXL"]
+    TALLAS_ROPA_NINO = ["T2", "T4", "T6", "T8", "T10", "T12", "T14"]
+    TALLAS_CALZADO = {
+        "Mujer": list(range(35, 42)),
+        "Hombre": list(range(38, 46)),
+        "Unisex": list(range(35, 46)),
+        "Niño": list(range(18, 35, 2)),
+        "Niña": list(range(18, 35, 2)),
+    }
 
-    TALLAS_ROPA = ["XS", "S", "M", "L", "XL", "XXL",
-                   "T2", "T4", "T6", "T8", "T10", "T12", "T14"]
-    
-    GENEROS_ROPA = ["Hombre", "Mujer", "Niño", "Niña", "Unisex"]
-
-    CATEGORIAS_ROPA = ["Camisa", "Blusa", "Pantalon", "Falda", "Vestido",
-                       "Chaqueta", "Abrigo", "Sudadera", "Shorts", "Jean"]
-
-    GENEROS_CALZADO = ["Hombre", "Mujer", "Niño", "Niña", "Unisex"]
-    
-    CATEGORIAS_CALZADO = ["Zapatilla", "Botin", "Bota", "Sandalia", "Plataforma",
-                           "Moccasin", "Deportivo", "Chancla"]
-
-    CATEGORIAS_ACCESORIO = ["Bolso", "Cartera", "Cinturon", "Gorra", "Gafas",
-                         "Joyeria", "Pulsera", "Aretes", "Anillo",
-                         "Reloj", "Mochila", "Billetera"]
-
-    METODOS_PAGO = ["Efectivo", "Transferencia", "Contraentrega"]
-
+    METODOS_PAGO = ["Efectivo", "Transferencia", "Transferencia", "Contraentrega"]
     MEDIOS_ENTREGA = ["Paqueteria", "Domicilio"]
 
-    ESTADOS_VENTA = ["Pendiente", "Completada", "Completada", "Completada",
-                     "Cancelada", "En devolucion"]
-    
-    ESTADOS_COMPRA = ["Pendiente", "Recibida", "Recibida", "Recibida",
-                      "Cancelada", "Parcial"]
-    
-    ESTADOS_FACTURA = ["Emitida", "Emitida", "Emitida", "Pagada", "Anulada"]
-
     @staticmethod
-    def sql_str(valor) -> str:
+    def sql(valor) -> str:
         if valor is None:
             return "NULL"
-        return f"'{valor}'"
+        if isinstance(valor, bool):
+            return "TRUE" if valor else "FALSE"
+        if isinstance(valor, (int, float)):
+            return str(valor)
+        if isinstance(valor, datetime):
+            return f"'{valor:%Y-%m-%d %H:%M:%S}'"
+        return "'" + str(valor).replace("'", "''") + "'"
 
     @staticmethod
     def telefono() -> str:
-        prefijo = random.choice(["300", "301", "302", "310", "311", "312",
-                                 "313", "314", "315", "316", "320", "321",
-                                 "322", "350"])
-        return prefijo + str(random.randint(1000000, 9999999))
-
-    @staticmethod
-    def correo(nombre: str, sufijo: int) -> str:
-        base = nombre.lower().replace(" ", "").replace("ñ", "n")
-        dominio = random.choice(["gmail.com", "hotmail.com", "yahoo.com", "outlook.com"])
-        return f"{base}{sufijo}@{dominio}"
+        return random.choice(["300", "301", "310", "311", "312", "315", "320", "350"]) \
+            + str(random.randint(1000000, 9999999))
 
     @staticmethod
     def direccion() -> str:
-        tipo = random.choice(Catalogos.CALLES_TIPO)
-        n1 = random.randint(1, 150)
-        n2 = random.randint(1, 99)
-        n3 = random.randint(1, 99)
-        apto = f" Apto {random.randint(100, 999)}" if random.random() < 0.2 else ""
-        return f"{tipo} {n1} #{n2}-{n3}{apto}"
+        return (f"{random.choice(Catalogos.CALLES)} {random.randint(1, 150)} "
+                f"#{random.randint(1, 99)}-{random.randint(1, 99)}")
 
-    @staticmethod
-    def codigo_postal() -> str:
-        return str(random.randint(100000, 999999))
 
-    @staticmethod
-    def timestamp(año_ini=2023, año_fin=2026) -> str:
-        a = random.randint(año_ini, año_fin)
-        m = random.randint(1, 12)
-        d = random.randint(1, 28)
-        h = random.randint(7, 20)
-        mi = random.randint(0, 59)
-        s = random.randint(0, 59)
-        return f"{a}-{m:02d}-{d:02d} {h:02d}:{mi:02d}:{s:02d}"
+def fecha_entre(desde: datetime, hasta: datetime) -> datetime:
+    """Fecha aleatoria entre dos fechas, en horario comercial."""
+    if hasta <= desde:
+        return desde
+    segundos = int((hasta - desde).total_seconds())
+    f = desde + timedelta(seconds=random.randint(0, segundos))
+    return f.replace(hour=random.randint(8, 19), minute=random.randint(0, 59),
+                     second=random.randint(0, 59), microsecond=0)
+
+
+def precio(minimo: int, maximo: int) -> float:
+    """Precio redondeado a cientos de pesos."""
+    return float(round(random.randint(minimo, maximo), -2))
 
 
 # ──────────────────────────────────────────────────────────────
-#  Generador principal
+#  Generador
 # ──────────────────────────────────────────────────────────────
-class PytarShopPopulator:
+class Generador:
 
-    def __init__(self, config: DatabaseConfig):
-        self.cfg = config
-        self.ids_ubicaciones: List[int] = []
-        self.ids_clientes: List[int] = []
-        self.ids_proveedores: List[int] = []
-        self.ids_productos: List[int] = []
-        self.ids_ropa: List[int] = []
-        self.ids_calzado: List[int] = []
-        self.ids_accesorio: List[int] = []
-        self.ids_compras: List[int] = []
-        self.ids_ventas: List[int] = []
-        self._correos_usados: Set[str] = set()
-        self._id_factura = 0
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        self.lineas = []
+        self.conteo = {}
+        # datos en memoria para mantener la coherencia
+        self.clientes = []          # (id, fecha_registro, [ids ubicaciones])
+        self.proveedores = []       # (id, fecha_registro)
+        self.productos = {}         # id -> dict(precio, fecha_ingreso, stock, tipo)
+        self.compras = []           # (id, fecha, estado, [(id_producto, cantidad, precio)])
+        self.ventas = []            # (id, fecha, estado, medio, [(id_producto, cantidad, precio, descuento)])
+        self.id_ubicacion = 0
 
-    def _nueva_factura(self) -> int:
-        self._id_factura += 1
-        return self._id_factura
+    def insert(self, tabla: str, columnas: str, valores: list):
+        self.lineas.append(f"INSERT INTO {tabla} ({columnas}) VALUES "
+                           f"({', '.join(Catalogos.sql(v) for v in valores)});")
+        self.conteo[tabla] = self.conteo.get(tabla, 0) + 1
 
-    # ── UBICACIONES ───────────────────────────────────────────
-    # Se generan primero porque CLIENTES y PROVEEDORES las referencian
-    def generar_ubicaciones(self):
-        print("\n-- PoblarOK. CRUD: Ubicaciones")
-        # una ubicacion por cada cliente + una por cada proveedor (aprox)
-        total = self.cfg.num_clientes + self.cfg.num_proveedores
-        for i in range(1, total + 1):
-            calle = Catalogos.direccion()
-            barrio = random.choice(Catalogos.BARRIOS)
-            ciudad, dpto = random.choice(Catalogos.CIUDADES_DPTO)
-            cp = Catalogos.codigo_postal() if random.random() < 0.7 else None
-            es_principal = "true"
-            print(f"INSERT INTO UBICACIONES "
-                  f"(id_ubicacion, calle, barrio, ciudad, departamento, "
-                  f"codigo_postal, es_principal) "
-                  f"VALUES ({i}, '{calle}', '{barrio}', '{ciudad}', '{dpto}', "
-                  f"{Catalogos.sql_str(cp)}, {es_principal});")
-            self.ids_ubicaciones.append(i)
+    def titulo(self, texto: str):
+        self.lineas.append(f"\n-- PoblarOK. {texto}")
 
-    # ── CLIENTES ─────────────────────────────────────────────
+    def nueva_ubicacion(self, id_cliente, es_principal):
+        self.id_ubicacion += 1
+        ciudad, dpto = random.choice(Catalogos.CIUDADES)
+        self.insert("UBICACIONES",
+                    "id_ubicacion, calle, barrio, ciudad, departamento, codigo_postal, es_principal, id_cliente",
+                    [self.id_ubicacion, Catalogos.direccion(), random.choice(Catalogos.BARRIOS),
+                     ciudad, dpto, str(random.randint(100000, 999999)) if random.random() < 0.6 else None,
+                     es_principal, id_cliente])
+        return self.id_ubicacion
+
+    # ── CLIENTES y sus UBICACIONES ────────────────────────────
     def generar_clientes(self):
-        print("\n-- PoblarOK. CRUD: Clientes")
-        generados = 0
-        id_c = 1
-        # pool de ubicaciones para clientes (primeras num_clientes ubicaciones)
-        pool_ubic = self.ids_ubicaciones[:self.cfg.num_clientes]
+        self.titulo("CRUD: Clientes")
+        correos = set()
+        for id_c in range(1, self.cfg.num_clientes + 1):
+            nombre = random.choice(Catalogos.NOMBRES)
+            correo = None
+            if random.random() < 0.8:
+                base = nombre.lower().replace(" ", ".").replace("ñ", "n")
+                correo = f"{base}{id_c}@{random.choice(['gmail.com', 'hotmail.com', 'outlook.com'])}"
+                correos.add(correo)
+            registro = fecha_entre(INICIO, HOY - timedelta(days=20))
+            self.insert("CLIENTES", "id_cliente, nombre, telefono, correo, fecha_registro, notas",
+                        [id_c, nombre, Catalogos.telefono(), correo, registro,
+                         random.choice(["Cliente frecuente", "Prefiere transferencia", None, None, None])])
+            self.clientes.append([id_c, registro, []])
 
-        while generados < self.cfg.num_clientes:
-            nombre = random.choice(Catalogos.NOMBRES_COMPLETOS)
+        self.titulo("CRUD: Ubicaciones de clientes (de 1 a 3 por cliente, una principal)")
+        for cliente in self.clientes:
+            for k in range(random.choice([1, 1, 2, 2, 3])):
+                cliente[2].append(self.nueva_ubicacion(cliente[0], k == 0))
 
-            correo = Catalogos.correo(nombre, id_c)
-            if correo in self._correos_usados:
-                correo = None
-            else:
-                self._correos_usados.add(correo)
-
-            telefono = Catalogos.telefono()
-            fecha_reg = Catalogos.timestamp(2020, 2025)
-            notas = Catalogos.sql_str(random.choice(
-                ["Cliente frecuente", "Preferencial", None, None, None]))
-
-            # id_ubicacion: la mayoria tiene, algunos no
-            id_ubic = pool_ubic[generados] if random.random() < 0.85 else None
-
-            print(f"INSERT INTO CLIENTES "
-                  f"(id_cliente, nombre, telefono, correo, fecha_registro, notas, id_ubicacion) "
-                  f"VALUES ({id_c}, '{nombre}', '{telefono}', {Catalogos.sql_str(correo)}, "
-                  f"'{fecha_reg}', {notas}, {Catalogos.sql_str(id_ubic)});")
-
-            self.ids_clientes.append(id_c)
-            id_c += 1
-            generados += 1
-
-    # ── PROVEEDORES ───────────────────────────────────────────
+    # ── PROVEEDORES y sus UBICACIONES ─────────────────────────
     def generar_proveedores(self):
-        print("\n-- PoblarOK. CRUD: Proveedores")
-        nombres = (Catalogos.NOMBRES_PROVEEDORES * 10)[:self.cfg.num_proveedores]
-        # pool de ubicaciones para proveedores (ultimas num_proveedores ubicaciones)
-        pool_ubic = self.ids_ubicaciones[self.cfg.num_clientes:]
+        self.titulo("CRUD: Ubicaciones de proveedores (opcional, maximo una)")
+        ubic_prov = {}
+        for id_p in range(1, self.cfg.num_proveedores + 1):
+            if random.random() < 0.6:
+                ubic_prov[id_p] = self.nueva_ubicacion(None, False)
 
-        for i, nombre in enumerate(nombres, start=1):
-            correo = f"ventas{i}@{nombre.split()[0].lower().replace('.','')}.co"
-            if correo in self._correos_usados:
-                correo = None
-            else:
-                self._correos_usados.add(correo)
+        self.titulo("CRUD: Proveedores")
+        for id_p in range(1, self.cfg.num_proveedores + 1):
+            base = Catalogos.PROVEEDORES[(id_p - 1) % len(Catalogos.PROVEEDORES)]
+            nombre = base if id_p <= len(Catalogos.PROVEEDORES) else f"{base} {id_p}"
+            dominio = base.split()[0].lower().replace(".", "")
+            registro = fecha_entre(INICIO - timedelta(days=730), INICIO - timedelta(days=1))
+            self.insert("PROVEEDORES", "id_proveedor, nombre, telefono, correo, fecha_registro, id_ubicacion",
+                        [id_p, nombre, "601" + str(random.randint(1000000, 9999999)),
+                         f"ventas{id_p}@{dominio}.co", registro, ubic_prov.get(id_p)])
+            self.proveedores.append((id_p, registro))
 
-            telefono = Catalogos.telefono()
-            fecha_reg = Catalogos.timestamp(2018, 2024)
-            id_ubic = pool_ubic[i - 1] if (i - 1) < len(pool_ubic) else None
-
-            print(f"INSERT INTO PROVEEDORES "
-                  f"(id_proveedor, nombre, telefono, correo, fecha_registro, id_ubicacion) "
-                  f"VALUES ({i}, '{nombre}', '{telefono}', {Catalogos.sql_str(correo)}, "
-                  f"'{fecha_reg}', {Catalogos.sql_str(id_ubic)});")
-            self.ids_proveedores.append(i)
-
-    # ── PRODUCTOS ─────────────────────────────────────────────
+    # ── PRODUCTOS y SUBTIPOS ──────────────────────────────────
     def generar_productos(self):
-        print("\n-- PoblarOK. CRUD: Productos")
         n = self.cfg.num_productos
-        n_ropa = int(n * 0.35)
-        n_calzado = int(n * 0.30)
-        n_acc = n - n_ropa - n_calzado
-
-        tipos = (["ropa"] * n_ropa) + (["calzado"] * n_calzado) + (["accesorio"] * n_acc)
+        tipos = ["Ropa"] * int(n * 0.40) + ["Calzado"] * int(n * 0.30)
+        tipos += ["Accesorio"] * (n - len(tipos))
         random.shuffle(tipos)
+        subtipos = {"Ropa": [], "Calzado": [], "Accesorio": []}
 
-        NOMBRES_ROPA = ["Camiseta Clasica", "Blusa Floral", "Jean Slim", "Vestido Casual",
-                        "Chaqueta Denim", "Sudadera Oversize", "Shorts Verano",
-                        "Pantalon Formal", "Abrigo Invierno", "Falda Midi"]
-        NOMBRES_CALZADO = ["Zapatilla Running", "Botin Tacon", "Bota Cuero",
-                           "Sandalia Plana", "Plataforma Negra", "Moccasin Casual",
-                           "Tenis Deportivo", "Chancla Verano"]
-        NOMBRES_ACC = ["Bolso Bandolera", "Cartera Mini", "Cinturon Cuero",
-                       "Gorra Visera", "Gafas Sol", "Collar Dorado",
-                       "Reloj Clasico", "Mochila Urbana", "Billetera Bifold"]
-
-        for i, tipo in enumerate(tipos, start=1):
-            if tipo == "ropa":
-                nombre = random.choice(NOMBRES_ROPA)
+        for id_p, tipo in enumerate(tipos, start=1):
+            if tipo == "Ropa":
+                categoria = random.choice(list(Catalogos.ROPA))
+                genero = random.choice(Catalogos.GENEROS)
+                talla = random.choice(Catalogos.TALLAS_ROPA_NINO if genero in ("Niño", "Niña")
+                                      else Catalogos.TALLAS_ROPA_ADULTO)
                 marca = random.choice(Catalogos.MARCAS_ROPA)
-                precio = round(random.uniform(25000, 250000), 2)
-                self.ids_ropa.append(i)
-            elif tipo == "calzado":
-                nombre = random.choice(NOMBRES_CALZADO)
+                valor = precio(30000, 250000)
+                nombre = f"{Catalogos.ROPA[categoria]} {random.choice(Catalogos.ESTILOS)}"
+                subtipos["Ropa"].append([id_p, talla, genero, categoria,
+                                         random.choice(Catalogos.MATERIALES_TELA)])
+            elif tipo == "Calzado":
+                categoria = random.choice(list(Catalogos.CALZADO))
+                genero = random.choice(Catalogos.GENEROS)
+                talla = random.choice(Catalogos.TALLAS_CALZADO[genero])
                 marca = random.choice(Catalogos.MARCAS_CALZADO)
-                precio = round(random.uniform(80000, 450000), 2)
-                self.ids_calzado.append(i)
+                valor = precio(60000, 450000)
+                nombre = f"{Catalogos.CALZADO[categoria]} {random.choice(Catalogos.ESTILOS)}"
+                subtipos["Calzado"].append([id_p, talla, genero, categoria,
+                                            random.choice(Catalogos.MATERIALES_CALZADO)])
             else:
-                nombre = random.choice(NOMBRES_ACC)
+                categoria = random.choice(list(Catalogos.ACCESORIO))
                 marca = random.choice(Catalogos.MARCAS_ACCESORIO)
-                precio = round(random.uniform(20000, 600000), 2)
-                self.ids_accesorio.append(i)
+                valor = precio(20000, 500000)
+                nombre = f"{Catalogos.ACCESORIO[categoria]} {random.choice(Catalogos.ESTILOS)}"
+                subtipos["Accesorio"].append([id_p, categoria,
+                                              random.choice(Catalogos.MATERIALES_ACCESORIO),
+                                              random.choice(["30x20x10 cm", "25x15x8 cm", "15x10x5 cm", None])])
+            self.productos[id_p] = {
+                "nombre": nombre, "marca": marca, "precio": valor, "tipo": tipo,
+                "ingreso": fecha_entre(INICIO - timedelta(days=60), HOY - timedelta(days=60)),
+                "stock": 0, "comprado": False,
+            }
+        self.subtipos = subtipos
 
-            stock = random.randint(0, 100)
-            estado = "Agotado" if stock == 0 else random.choice(Catalogos.ESTADOS_PRODUCTO)
-            fecha_ing = Catalogos.timestamp(2022, 2026)
+    def escribir_productos(self):
+        # Se escriben despues de simular compras y ventas, porque el stock y el estado
+        # finales dependen de lo que se compro y se vendio.
+        self.titulo("CRUD: Productos")
+        for id_p, p in self.productos.items():
+            if p["stock"] == 0:
+                estado = "Agotado"
+            else:
+                estado = random.choices(["Disponible", "Reservado", "Descontinuado"], [90, 5, 5])[0]
+            self.insert("PRODUCTOS",
+                        "id_producto, nombre, descripcion, precio_referencia, marca, stock, estado, fecha_ingreso, imagen_url",
+                        [id_p, p["nombre"], None, p["precio"], p["marca"], p["stock"], estado,
+                         p["ingreso"], None])
 
-            print(f"INSERT INTO PRODUCTOS "
-                  f"(id_producto, nombre, descripcion, precio_referencia, marca, "
-                  f"stock, estado, fecha_ingreso, imagen_url) "
-                  f"VALUES ({i}, '{nombre}', NULL, {precio}, {Catalogos.sql_str(marca)}, "
-                  f"{stock}, '{estado}', '{fecha_ing}', NULL);")
-            self.ids_productos.append(i)
+        self.titulo("CRUD: Ropa")
+        for fila in self.subtipos["Ropa"]:
+            self.insert("ROPA", "id_producto, talla, genero, categoria_ropa, material", fila)
+        self.titulo("CRUD: Calzado")
+        for fila in self.subtipos["Calzado"]:
+            self.insert("CALZADO", "id_producto, talla, genero, categoria_calzado, material", fila)
+        self.titulo("CRUD: Accesorios")
+        for fila in self.subtipos["Accesorio"]:
+            self.insert("ACCESORIOS", "id_producto, categoria, material, dimensiones", fila)
 
-    # ── SUBCLASES ─────────────────────────────────────────────
-    def generar_ropa(self):
-        print("\n-- PoblarOK. CRUD: Ropa")
-        for id_p in self.ids_ropa:
-            talla = random.choice(Catalogos.TALLAS_ROPA)
-            genero = random.choice(Catalogos.GENEROS_ROPA)
-            categoria = random.choice(Catalogos.CATEGORIAS_ROPA)
-            material = random.choice(Catalogos.MATERIALES_TELA)
-            print(f"INSERT INTO ROPA (id_producto, talla, genero, categoria_ropa, material) "
-                  f"VALUES ({id_p}, '{talla}', '{genero}', '{categoria}', "
-                  f"{Catalogos.sql_str(material)});")
+    # ── SIMULACION EN ORDEN DE FECHA: compras y ventas ────────
+    def simular(self):
+        eventos = [("compra", fecha_entre(INICIO, HOY - timedelta(days=3)))
+                   for _ in range(self.cfg.num_compras)]
+        eventos += [("venta", fecha_entre(INICIO + timedelta(days=20), HOY))
+                    for _ in range(self.cfg.num_ventas)]
+        eventos.sort(key=lambda e: e[1])
 
-    def generar_calzado(self):
-        print("\n-- PoblarOK. CRUD: Calzado")
-        for id_p in self.ids_calzado:
-            talla = round(random.uniform(18.0, 45.0), 1)
-            genero = random.choice(Catalogos.GENEROS_CALZADO)
-            categoria = random.choice(Catalogos.CATEGORIAS_CALZADO)
-            material = random.choice(Catalogos.MATERIALES_CALZADO)
-            print(f"INSERT INTO CALZADO (id_producto, talla, genero, categoria_calzado, material) "
-                  f"VALUES ({id_p}, {talla}, '{genero}', '{categoria}', "
-                  f"{Catalogos.sql_str(material)});")
+        id_compra = id_venta = 0
+        for tipo, fecha in eventos:
+            if tipo == "compra":
+                id_compra += 1
+                self.registrar_compra(id_compra, fecha)
+            else:
+                if self.registrar_venta(id_venta + 1, fecha):
+                    id_venta += 1
 
-    def generar_accesorios(self):
-        print("\n-- PoblarOK. CRUD: Accesorios")
-        DIMS = ["30x20x10 cm", "25x15x8 cm", "40x30x15 cm", "15x10x5 cm", None]
-        for id_p in self.ids_accesorio:
-            categoria = random.choice(Catalogos.CATEGORIAS_ACCESORIO)
-            material = random.choice(Catalogos.MATERIALES_ACCESORIO)
-            dim = random.choice(DIMS)
-            print(f"INSERT INTO ACCESORIOS (id_producto, categoria, material, dimensiones) "
-                  f"VALUES ({id_p}, '{categoria}', {Catalogos.sql_str(material)}, "
-                  f"{Catalogos.sql_str(dim)});")
+    def registrar_compra(self, id_compra, fecha):
+        estado = "Cancelada" if random.random() < 0.08 else "Recibida"
+        disponibles = [i for i, p in self.productos.items() if p["ingreso"] <= fecha]
+        # se prioriza surtir productos que nunca se han comprado o que estan agotados
+        prioridad = [i for i in disponibles if self.productos[i]["stock"] == 0]
+        elegidos = set(random.sample(prioridad, min(len(prioridad), random.randint(3, 6))))
+        while len(elegidos) < 5 and len(elegidos) < len(disponibles):
+            elegidos.add(random.choice(disponibles))
+        detalles = []
+        for id_p in elegidos:
+            cantidad = random.randint(3, 15)
+            costo = float(round(self.productos[id_p]["precio"] * random.uniform(0.45, 0.65), -2))
+            detalles.append((id_p, cantidad, costo))
+            if estado == "Recibida":
+                self.productos[id_p]["stock"] += cantidad
+                self.productos[id_p]["comprado"] = True
+        proveedor = random.choice([p for p in self.proveedores if p[1] <= fecha])
+        self.compras.append((id_compra, fecha, estado, proveedor[0], detalles))
 
-    # ── COMPRAS ───────────────────────────────────────────────
-    def generar_compras(self):
-        print("\n-- PoblarOK. CRUD: Compras")
-        for i in range(1, self.cfg.num_compras + 1):
-            fecha = Catalogos.timestamp(2023, 2026)
-            estado = random.choice(Catalogos.ESTADOS_COMPRA)
-            obs = Catalogos.sql_str(random.choice(
-                ["Pedido urgente", "Entrega parcial", None, None, None]))
-            id_prov = random.choice(self.ids_proveedores)
-            print(f"INSERT INTO COMPRAS "
-                  f"(id_compra, fecha_compra, estado_compra, observacion, id_proveedor) "
-                  f"VALUES ({i}, '{fecha}', '{estado}', {obs}, {id_prov});")
-            self.ids_compras.append(i)
+    def registrar_venta(self, id_venta, fecha):
+        candidatos = [c for c in self.clientes if c[1] <= fecha]
+        con_stock = [i for i, p in self.productos.items() if p["stock"] > 0]
+        if not candidatos or not con_stock:
+            return False
+        cliente = random.choice(candidatos)
+        # la mayoria de las veces se entrega en la ubicacion principal (la primera)
+        ubicacion = cliente[2][0] if random.random() < 0.7 else random.choice(cliente[2])
+        antiguedad = (HOY - fecha).days
+        if random.random() < 0.08:
+            estado = "Cancelada"
+        elif antiguedad <= 10:
+            estado = random.choice(["Pendiente", "Pendiente", "Completada"])
+        else:
+            estado = "Completada"
 
-    def generar_detalles_compra(self):
-        print("\n-- PoblarOK. CRUD: Detalles de Compras")
-        for id_c in self.ids_compras:
-            vistos: Set[int] = set()
-            for _ in range(random.randint(2, 6)):
-                id_p = random.choice(self.ids_productos)
-                if id_p in vistos:
-                    continue
-                vistos.add(id_p)
-                cantidad = random.randint(5, 50)
-                precio = round(random.uniform(15000, 300000), 2)
-                print(f"INSERT INTO DETALLESDECOMPRAS "
-                      f"(id_compra, id_producto, cantidad, precio_compra) "
-                      f"VALUES ({id_c}, {id_p}, {cantidad}, {precio});")
+        detalles = []
+        for id_p in random.sample(con_stock, min(len(con_stock), random.choice([1, 1, 2, 2, 3]))):
+            p = self.productos[id_p]
+            cantidad = random.randint(1, min(3, p["stock"]))
+            valor = float(round(p["precio"] * random.uniform(0.95, 1.10), -2))
+            descuento = float(round(valor * random.uniform(0.05, 0.20), -2)) if random.random() < 0.2 else None
+            detalles.append((id_p, cantidad, valor, descuento))
+            if estado != "Cancelada":
+                p["stock"] -= cantidad
+        self.ventas.append((id_venta, fecha, estado, cliente[0], ubicacion, detalles))
+        return True
 
-    # ── VENTAS ────────────────────────────────────────────────
-    def generar_ventas(self):
-        print("\n-- PoblarOK. CRUD: Ventas")
-        for i in range(1, self.cfg.num_ventas + 1):
-            fecha = Catalogos.timestamp(2023, 2026)
-            metodo = random.choice(Catalogos.METODOS_PAGO)
-            estado = random.choice(Catalogos.ESTADOS_VENTA)
-            medio = random.choice(Catalogos.MEDIOS_ENTREGA)
-            obs = Catalogos.sql_str(random.choice(
-                ["Entregar en horario de la tarde", None, None, None, None]))
-            id_cl = random.choice(self.ids_clientes)
-            print(f"INSERT INTO VENTAS "
-                  f"(id_venta, fecha_venta, metodo_pago, estado_venta, medio_entrega, "
-                  f"observaciones, id_cliente) "
-                  f"VALUES ({i}, '{fecha}', '{metodo}', '{estado}', '{medio}', "
-                  f"{obs}, {id_cl});")
-            self.ids_ventas.append(i)
+    def escribir_compras(self):
+        self.titulo("CRUD: Compras")
+        for id_c, fecha, estado, id_prov, _ in self.compras:
+            self.insert("COMPRAS", "id_compra, fecha_compra, estado_compra, observacion, id_proveedor",
+                        [id_c, fecha, estado,
+                         random.choice(["Pedido urgente", "Reposicion de temporada", None, None, None]),
+                         id_prov])
+        self.titulo("CRUD: Detalles de Compras")
+        for id_c, _, _, _, detalles in self.compras:
+            for id_p, cantidad, costo in detalles:
+                self.insert("DETALLESDECOMPRAS", "id_compra, id_producto, cantidad, precio_compra",
+                            [id_c, id_p, cantidad, costo])
 
-    def generar_detalles_venta(self):
-        print("\n-- PoblarOK. CRUD: Detalles de Ventas")
-        for id_v in self.ids_ventas:
-            vistos: Set[int] = set()
-            for _ in range(random.randint(1, 4)):
-                id_p = random.choice(self.ids_productos)
-                if id_p in vistos:
-                    continue
-                vistos.add(id_p)
-                cantidad = random.randint(1, 5)
-                precio = round(random.uniform(20000, 500000), 2)
-                desc = round(random.uniform(1000, precio * 0.3), 2) if random.random() < 0.25 else None
-                print(f"INSERT INTO DETALLESDEVENTAS "
-                      f"(id_venta, id_producto, cantidad, precio_venta, descuento) "
-                      f"VALUES ({id_v}, {id_p}, {cantidad}, {precio}, "
-                      f"{Catalogos.sql_str(desc)});")
+    def escribir_ventas(self):
+        self.titulo("CRUD: Ventas")
+        for id_v, fecha, estado, id_cl, id_ubic, _ in self.ventas:
+            self.insert("VENTAS",
+                        "id_venta, fecha_venta, metodo_pago, estado_venta, medio_entrega, observaciones, id_cliente, id_ubicacion",
+                        [id_v, fecha, random.choice(Catalogos.METODOS_PAGO), estado,
+                         random.choice(Catalogos.MEDIOS_ENTREGA),
+                         random.choice(["Entregar en la tarde", "Llamar antes de llegar", None, None, None]),
+                         id_cl, id_ubic])
+        self.titulo("CRUD: Detalles de Ventas")
+        for id_v, _, _, _, _, detalles in self.ventas:
+            for id_p, cantidad, valor, descuento in detalles:
+                self.insert("DETALLESDEVENTAS", "id_venta, id_producto, cantidad, precio_venta, descuento",
+                            [id_v, id_p, cantidad, valor, descuento])
 
     # ── FACTURAS ──────────────────────────────────────────────
-    def generar_facturas_venta(self):
-        print("\n-- PoblarOK. CRUD: Facturas de Venta")
-        for id_v in self.ids_ventas:
-            id_f = self._nueva_factura()
-            fecha = Catalogos.timestamp(2023, 2026)
-            total = round(random.uniform(20000, 1500000), 2)
-            estado = random.choice(Catalogos.ESTADOS_FACTURA)
-            guia = f"GUIA-{id_f:06d}" if random.random() < 0.7 else None
-            print(f"INSERT INTO FACTURAS "
-                  f"(id_factura, fecha_emision, total, estado_factura, observaciones) "
-                  f"VALUES ({id_f}, '{fecha}', {total}, '{estado}', NULL);")
-            print(f"INSERT INTO FACTURASVENTA (id_factura, id_venta, numero_guia) "
-                  f"VALUES ({id_f}, {id_v}, {Catalogos.sql_str(guia)});")
+    def escribir_facturas(self):
+        facturas, f_venta, f_compra = [], [], []
+        id_f = 0
+        for id_v, fecha, estado, _, _, detalles in self.ventas:
+            if estado == "Completada" and random.random() < 0.9:
+                id_f += 1
+                total = sum(c * v - (d or 0) for _, c, v, d in detalles)
+                estado_f = "Pagada" if (HOY - fecha).days > 30 else random.choice(["Emitida", "Pagada"])
+                facturas.append([id_f, fecha + timedelta(hours=random.randint(1, 48)),
+                                 round(total, 2), estado_f, None])
+                f_venta.append([id_f, id_v, f"GUIA-{id_v:06d}" if random.random() < 0.7 else None])
+        for id_c, fecha, estado, _, detalles in self.compras:
+            if estado == "Recibida" and random.random() < 0.9:
+                id_f += 1
+                total = sum(c * v for _, c, v in detalles)
+                facturas.append([id_f, fecha + timedelta(hours=random.randint(1, 48)),
+                                 round(total, 2), "Pagada" if (HOY - fecha).days > 30 else "Emitida", None])
+                f_compra.append([id_f, id_c, f"REM-{id_c:06d}" if random.random() < 0.8 else None])
 
-    def generar_facturas_compra(self):
-        print("\n-- PoblarOK. CRUD: Facturas de Compra")
-        for id_c in self.ids_compras:
-            id_f = self._nueva_factura()
-            fecha = Catalogos.timestamp(2023, 2026)
-            total = round(random.uniform(100000, 5000000), 2)
-            estado = random.choice(Catalogos.ESTADOS_FACTURA)
-            remision = f"REM-{id_f:06d}" if random.random() < 0.8 else None
-            print(f"INSERT INTO FACTURAS "
-                  f"(id_factura, fecha_emision, total, estado_factura, observaciones) "
-                  f"VALUES ({id_f}, '{fecha}', {total}, '{estado}', NULL);")
-            print(f"INSERT INTO FACTURASCOMPRA (id_factura, id_compra, numero_remision) "
-                  f"VALUES ({id_f}, {id_c}, {Catalogos.sql_str(remision)});")
+        self.titulo("CRUD: Facturas")
+        for fila in facturas:
+            self.insert("FACTURAS", "id_factura, fecha_emision, total, estado_factura, observaciones", fila)
+        self.titulo("CRUD: Facturas de Venta")
+        for fila in f_venta:
+            self.insert("FACTURASVENTA", "id_factura, id_venta, numero_guia", fila)
+        self.titulo("CRUD: Facturas de Compra")
+        for fila in f_compra:
+            self.insert("FACTURASCOMPRA", "id_factura, id_compra, numero_remision", fila)
 
-    # ── EJECUCIÓN ─────────────────────────────────────────────
+    # ── EJECUCION ─────────────────────────────────────────────
     def poblar(self):
-        print("-- Script de población Pytar-Shop")
-        print(f"-- Generando datos para {self.cfg.num_clientes} clientes base\n")
+        random.seed(SEMILLA)
+        self.generar_clientes()
+        self.generar_proveedores()
+        self.generar_productos()
+        self.simular()
 
-        # Orden respeta las FKs: primero tablas sin dependencias
-        self.generar_ubicaciones()       # sin dependencias
-        self.generar_clientes()          # depende de UBICACIONES
-        self.generar_proveedores()       # depende de UBICACIONES
-        self.generar_productos()         # sin dependencias
-        self.generar_ropa()              # depende de PRODUCTOS
-        self.generar_calzado()           # depende de PRODUCTOS
-        self.generar_accesorios()        # depende de PRODUCTOS
-        self.generar_compras()           # depende de PROVEEDORES
-        self.generar_detalles_compra()   # depende de COMPRAS, PRODUCTOS
-        self.generar_ventas()            # depende de CLIENTES
-        self.generar_detalles_venta()    # depende de VENTAS, PRODUCTOS
-        self.generar_facturas_venta()    # depende de VENTAS
-        self.generar_facturas_compra()   # depende de COMPRAS
+        # Orden de escritura: respeta las llaves foraneas
+        cuerpo_clientes = self.lineas
+        self.lineas = []
+        self.escribir_productos()
+        self.escribir_compras()
+        self.escribir_ventas()
+        self.escribir_facturas()
 
-        print("\n-- Población completada exitosamente")
+        total = sum(self.conteo.values())
+        print("-- PoblarOK. Pytar-Shop")
+        print(f"-- Datos generados con Poblar_PytarShop.py ({self.cfg.num_clientes} clientes, semilla {SEMILLA})")
+        print(f"-- Total de filas: {total}")
+        for tabla, n in self.conteo.items():
+            print(f"--   {tabla:<18} {n}")
+        print("\n".join(cuerpo_clientes))
+        print("\n".join(self.lineas))
+        return total
 
 
-# ──────────────────────────────────────────────────────────────
-#  Main
-# ──────────────────────────────────────────────────────────────
 def main():
     try:
-        import sys
-        if len(sys.argv) > 1:
-            n = int(sys.argv[1])
-        else:
-            print("Cantidad de clientes a generar:")
-            n = int(input())
-        config = DatabaseConfig(num_clientes=n)
-        PytarShopPopulator(config).poblar()
+        n = int(sys.argv[1]) if len(sys.argv) > 1 else 625
+        total = Generador(Config(n)).poblar()
+        print(f"PoblarOK generado: {total} filas", file=sys.stderr)
     except ValueError:
-        print("Error: debe ingresar un número entero válido")
-    except KeyboardInterrupt:
-        print("\nOperación cancelada")
-    except Exception as e:
-        print(f"Error inesperado: {e}")
+        print("Error: la cantidad de clientes debe ser un numero entero", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
