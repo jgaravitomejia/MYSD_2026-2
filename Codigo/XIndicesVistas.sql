@@ -1,25 +1,14 @@
--- Indices 
-DROP INDEX IF EXISTS idx_compras_id_proveedor;
-DROP INDEX IF EXISTS idx_detallesdecompras_id_producto;
-DROP INDEX IF EXISTS idx_ventas_id_cliente;
-DROP INDEX IF EXISTS idx_detallesventas_id_producto;
-DROP INDEX IF EXISTS idx_facturasventa_id_venta;
-DROP INDEX IF EXISTS idx_facturascompra_id_compra;
-DROP INDEX IF EXISTS idx_productos_estado;
-DROP INDEX IF EXISTS idx_ventas_estado_venta;
-DROP INDEX IF EXISTS idx_compras_estado_compra;
-DROP INDEX IF EXISTS idx_facturas_estado_factura;
-DROP INDEX IF EXISTS idx_ventas_metodo_pago;
-DROP INDEX IF EXISTS idx_ventas_fecha_venta;
-DROP INDEX IF EXISTS idx_compras_fecha_compra;
+--XIndicesVistas
+DROP VIEW IF EXISTS VW_CLIENTES_CONTACTO;
+DROP VIEW IF EXISTS VW_COSTO_PROMEDIO;
+DROP VIEW IF EXISTS VW_LINEAS_VENTA;
+DROP VIEW IF EXISTS VW_PRODUCTOS_TIPO;
 
--- Vistas 
-DROP VIEW IF EXISTS vw_vendedor_productos_disponibles;
-DROP VIEW IF EXISTS vw_vendedor_ventas;
-DROP VIEW IF EXISTS vw_inventario_productos;
-DROP VIEW IF EXISTS vw_inventario_proveedores;
-DROP VIEW IF EXISTS vw_rentabilidad_categoria;
-DROP VIEW IF EXISTS vw_inversion_vs_ingresos;
-DROP VIEW IF EXISTS vw_productos_mas_vendidos;
-DROP VIEW IF EXISTS vw_ventas_por_metodo_pago;
-DROP VIEW IF EXISTS vw_ranking_clientes;
+
+DROP INDEX IF EXISTS IX_VENTAS_FECHA;
+DROP INDEX IF EXISTS IX_VENTAS_CLIENTE;
+DROP INDEX IF EXISTS IX_VENTAS_UBICACION;
+DROP INDEX IF EXISTS IX_UBICACIONES_CLIENTE;
+DROP INDEX IF EXISTS IX_DETALLESDEVENTAS_PRODUCTO;
+DROP INDEX IF EXISTS IX_DETALLESDECOMPRAS_PRODUCTO;
+DROP INDEX IF EXISTS IX_COMPRAS_PROVEEDOR;

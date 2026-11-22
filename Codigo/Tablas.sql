@@ -6,7 +6,7 @@ CREATE TABLE CLIENTES(
     nombre          VARCHAR(50)     NOT NULL,
     telefono        VARCHAR(15)     NOT NULL,
     correo          VARCHAR(100)    NULL, -- UK
-    fecha_registro  TIMESTAMP       NOT NULL,
+    fecha_registro  TIMESTAMP       NOT NULL  DEFAULT CURRENT_TIMESTAMP,
     notas           VARCHAR(200)    NULL
 );
 
@@ -16,7 +16,7 @@ CREATE TABLE PROVEEDORES(
     nombre          VARCHAR(100)    NOT NULL,
     telefono        VARCHAR(15)     NOT NULL,
     correo          VARCHAR(100)    NULL, -- UK
-    fecha_registro  TIMESTAMP       NOT NULL,
+    fecha_registro  TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     id_ubicacion    INTEGER         NULL        -- FK -> UBICACIONES (UK: maximo un proveedor por ubicacion)
 );
 
@@ -42,7 +42,7 @@ CREATE TABLE PRODUCTOS(
     marca               VARCHAR(30)     NULL,
     stock               INTEGER         NOT NULL,
     estado              VARCHAR(20)     NOT NULL,
-    fecha_ingreso       TIMESTAMP       NOT NULL,
+    fecha_ingreso       TIMESTAMP       NOT NULL   DEFAULT CURRENT_TIMESTAMP,
     imagen_url          VARCHAR(250)    NULL
 );
 
@@ -72,8 +72,8 @@ CREATE TABLE ACCESORIOS(
 -- Tablas. CRUD: Compras
 CREATE TABLE COMPRAS(
     id_compra       INTEGER         NOT NULL,
-    fecha_compra    TIMESTAMP       NOT NULL,
-    estado_compra   VARCHAR(20)     NOT NULL,
+    fecha_compra    TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    estado_compra   VARCHAR(20)     NOT NULL DEFAULT 'Recibida',
     observacion     VARCHAR(200)    NULL,
     id_proveedor    INTEGER         NOT NULL    -- FK -> PROVEEDORES
 );
@@ -88,9 +88,9 @@ CREATE TABLE DETALLESDECOMPRAS(
 -- Tablas. CRUD: Ventas
 CREATE TABLE VENTAS(
     id_venta        INTEGER         NOT NULL,
-    fecha_venta     TIMESTAMP       NOT NULL,
+    fecha_venta     TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     metodo_pago     VARCHAR(20)     NOT NULL,
-    estado_venta    VARCHAR(20)     NOT NULL,
+    estado_venta    VARCHAR(20)     NOT NULL DEFAULT 'Pendiente',
     medio_entrega   VARCHAR(30)     NOT NULL,
     observaciones   VARCHAR(200)    NULL,
     id_cliente      INTEGER         NOT NULL,   -- FK -> CLIENTES
@@ -108,9 +108,9 @@ CREATE TABLE DETALLESDEVENTAS(
 -- Tablas. CRUD: Facturas
 CREATE TABLE FACTURAS(
     id_factura      INTEGER         NOT NULL,
-    fecha_emision   TIMESTAMP       NOT NULL,
+    fecha_emision   TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     total           NUMERIC(12,2)   NOT NULL,
-    estado_factura  VARCHAR(20)     NOT NULL,
+    estado_factura  VARCHAR(20)     NOT NULL DEFAULT 'Emitida',
     observaciones   VARCHAR(200)    NULL
 );
 

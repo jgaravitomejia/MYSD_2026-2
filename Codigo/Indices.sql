@@ -1,20 +1,22 @@
--- Indices en FK (joins)
-CREATE INDEX idx_compras_id_proveedor ON COMPRAS(id_proveedor);
-CREATE INDEX idx_detallesdecompras_id_producto ON DETALLESDECOMPRAS(id_producto);
-CREATE INDEX idx_ventas_id_cliente ON VENTAS(id_cliente);
-CREATE INDEX idx_detallesventas_id_producto ON DETALLESDEVENTAS(id_producto);
-CREATE INDEX idx_facturasventa_id_venta ON FACTURASVENTA(id_venta);
-CREATE INDEX idx_facturascompra_id_compra ON FACTURASCOMPRA(id_compra);
+--Indices
 
---Indices coluimnas de filtro (where)
-CREATE INDEX idx_productos_estado ON PRODUCTOS(estado);
-CREATE INDEX idx_ventas_estado_venta ON VENTAS(estado_venta);
-CREATE INDEX idx_compras_estado_compra ON COMPRAS(estado_compra);
-CREATE INDEX idx_facturas_estado_factura ON FACTURAS(estado_factura);
+-- Las 5 consultas gerenciales filtran las ventas por rango de fechas
+CREATE INDEX IX_VENTAS_FECHA ON VENTAS (fecha_venta);
 
---Indices en columnas de ordenamiento/agrupacion (order by/group by)
-CREATE INDEX idx_ventas_metodo_pago ON VENTAS(metodo_pago);
-CREATE INDEX idx_ventas_fecha_venta ON VENTAS(fecha_venta);
-CREATE INDEX idx_compras_fecha_compra ON COMPRAS(fecha_compra);
+-- CO4 y CG5 buscan las ventas de un cliente; tambien lo usa FK_VENTAS_CLIENTES al eliminar un cliente
+CREATE INDEX IX_VENTAS_CLIENTE ON VENTAS (id_cliente);
 
--- No se crean otros por ser UK o PK
+-- tg_ubicaciones revisa si una ubicacion ya se uso en una venta antes de modificarla
+CREATE INDEX IX_VENTAS_UBICACION ON VENTAS (id_ubicacion);
+
+-- tg_ubicaciones y tg_ventas buscan la ubicacion principal del cliente; CG5 tambien la usa
+CREATE INDEX IX_UBICACIONES_CLIENTE ON UBICACIONES (id_cliente);
+
+-- La PK de DETALLESDEVENTAS empieza por id_venta y no sirve para buscar por producto (CG3)
+CREATE INDEX IX_DETALLESDEVENTAS_PRODUCTO ON DETALLESDEVENTAS (id_producto);
+
+-- Igual que el anterior; lo usa el costo promedio de compra de cada producto (CG1)
+CREATE INDEX IX_DETALLESDECOMPRAS_PRODUCTO ON DETALLESDECOMPRAS (id_producto);
+
+-- CO1 y CO2 buscan las compras de un proveedor
+CREATE INDEX IX_COMPRAS_PROVEEDOR ON COMPRAS (id_proveedor);
