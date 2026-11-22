@@ -1,69 +1,22 @@
--- Vendedor no hace lo del administrador
+--SeguridadNoOK
+
+
+-- Vendedor
 SET ROLE vendedor;
-
--- No puede mantener proveedor
-CALL adicionar_proveedor(95010, 'Intruso', '6019999999', 'intruso@test.com', 1);
--- Error esperado: permission denied
-
--- No puede eliminar cliente 
-DELETE FROM CLIENTES WHERE id_cliente = 1;
--- Error esperado: permission denied
-
--- No puede ver vistas de gerencia
-SELECT * FROM vw_rentabilidad_categoria;
--- Error esperado: permission denied
-
+CALL registrar_compra.adicionar(97399, 1, NULL); --error esperado: permiso denegado para el esquema registrar_compra
+INSERT INTO COMPRAS (id_compra, id_proveedor) VALUES (97399, 1); --error esperado: permiso denegado para la tabla compras
 RESET ROLE;
 
 
-
--- Vendedor no hace lo del encargado
-SET ROLE vendedor;
-
--- No puede mantener producto
-CALL adicionar_producto(95010, 'Intruso', 'No deberia', 10000, 'X', 5, NULL);
--- Error esperado: permission denied
-
--- No puede registrar compra
-CALL adicionar_compra(95010, 'Intruso', 1);
--- Error esperado: permission denied
-
--- No puede ver vistas del inventario
-SELECT * FROM vw_inventario_productos LIMIT 5;
--- Error esperado: permission denied
-
-RESET ROLE;
-
-
-
--- Encargado no puede hacer lo del vendedor
+-- Encargado de inventario
 SET ROLE encargado_inventario;
-
--- No puede mantener producto
-CALL adicionar_venta(95010, 'Efectivo', 'Domicilio', 'Intruso', 1);
--- Error esperado: permission denied
-
--- No puede ver vistas de inventario
-SELECT * FROM vw_vendedor_ventas;
--- Error esperado: permission denied
-
+CALL registrar_venta.cancelar(1); --error esperado: permiso denegado para el esquema registrar_venta
+SELECT * FROM CLIENTES; --error esperado: permiso denegado para la tabla clientes
 RESET ROLE;
 
 
-
--- Encargado no hace lo del administrador
-SET ROLE encargado_inventario;
-
--- No puede mantener proveedor
-CALL adicionar_proveedor(95010, 'Intruso', '6019999999', 'intruso@test.com', 1);
--- Error esperado: permission denied
-
--- No puede eliminar cliente 
-DELETE FROM CLIENTES WHERE id_cliente = 1;
--- Error esperado: permission denied
-
--- No puede ver vistas de gerencia
-SELECT * FROM vw_rentabilidad_categoria;
--- Error esperado: permission denied
-
+-- Administrador
+SET ROLE administrador;
+CALL mantener_cliente.eliminar(1); --error esperado: permiso denegado para el esquema mantener_cliente
+UPDATE PRODUCTOS SET stock = 0 WHERE id_producto = 12; --error esperado: permiso denegado para la tabla productos
 RESET ROLE;

@@ -1,119 +1,90 @@
--- MANTENER_UBICACION
-CALL adicionar_ubicacion(93010, 'Calle 50 #20-30', 'Centro', 'Bogotá', 'Cundinamarca', '110111', true);
-SELECT * FROM UBICACIONES WHERE id_ubicacion = 93010;
+--ComponentesOK
 
 
--- MANTENER_CLIENTE
+-- Prueba 1: Mantener cliente. El cliente se registra con su primera ubicacion, que queda como principal
+DO $$
+BEGIN
+    CALL mantener_cliente.adicionar(97101, 'Cliente Prueba', '3001110001', NULL, NULL,
+                                    97101, 'Calle 10 #5-20', NULL, 'Bogota', 'Cundinamarca', NULL);
+    ASSERT (SELECT es_principal FROM UBICACIONES WHERE id_ubicacion = 97101), 'La ubicacion no quedo como principal';
+    RAISE NOTICE 'Prueba 1 OK: el cliente 97101 quedo registrado con su ubicacion principal 97101';
+END $$;
 
--- Adicionar cliente
-CALL adicionar_cliente(93010, 'Juan Pérez', '1234567890', 'juan.perez@email.com', 'Cliente de prueba', 93010);
-SELECT * FROM CLIENTES WHERE id_cliente = 93010;
 
--- Modificar cliente
-CALL modificar_cliente('Juan Garavito', '987654321', 93010);
-SELECT * FROM CLIENTES WHERE id_cliente = 93010;
+-- Prueba 2: Mantener ubicacion. Al marcar otra ubicacion como principal, la anterior deja de serlo
+DO $$
+BEGIN
+    CALL mantener_ubicacion.adicionar(97102, 97101, 'Carrera 7 #40-10', NULL, 'Bogota', 'Cundinamarca', NULL, FALSE);
+    CALL mantener_ubicacion.marcar_principal(97102);
+    ASSERT (SELECT es_principal FROM UBICACIONES WHERE id_ubicacion = 97102), 'La ubicacion 97102 no quedo como principal';
+    ASSERT NOT (SELECT es_principal FROM UBICACIONES WHERE id_ubicacion = 97101), 'La ubicacion 97101 sigue como principal';
+    RAISE NOTICE 'Prueba 2 OK: la ubicacion principal del cliente 97101 paso de la 97101 a la 97102';
+END $$;
 
 
--- MANTENER_PROVEEDOR
+-- Prueba 3: Mantener proveedor. El proveedor se registra junto con su ubicacion
+DO $$
+BEGIN
+    CALL mantener_proveedor.adicionar(97101, 'Proveedor Prueba', '6011110001', NULL,
+                                      97103, 'Avenida 30 #12-40', NULL, 'Bogota', 'Cundinamarca', NULL);
+    ASSERT (SELECT id_ubicacion FROM PROVEEDORES WHERE id_proveedor = 97101) = 97103, 'El proveedor no quedo con su ubicacion';
+    RAISE NOTICE 'Prueba 3 OK: el proveedor 97101 quedo registrado con la ubicacion 97103';
+END $$;
 
--- Adicionar proveedor
-CALL adicionar_proveedor(93010, 'Proveedor A', '1234567890', 'proveedor.a@email.com', 93010);
-SELECT * FROM PROVEEDORES WHERE id_proveedor = 93010;
 
--- Modificar proveedor
-CALL modificar_proveedor('Proveedor B', '987654321', 93010);
-SELECT * FROM PROVEEDORES WHERE id_proveedor = 93010;
+-- Prueba 4: Mantener producto. El producto se registra con su tipo y, sin stock, queda Agotado
+DO $$
+BEGIN
+    CALL mantener_producto.adicionar_ropa(97101, 'Chaqueta Prueba', NULL, 180000, 'Pytar', 0, NULL, 'M', 'Hombre', 'Chaqueta', NULL);
+    ASSERT (SELECT COUNT(*) FROM ROPA WHERE id_producto = 97101) = 1, 'No quedo registrado como ropa';
+    ASSERT (SELECT estado FROM PRODUCTOS WHERE id_producto = 97101) = 'Agotado', 'Sin stock deberia quedar Agotado';
+    RAISE NOTICE 'Prueba 4 OK: la chaqueta 97101 quedo registrada como ropa y Agotado';
+END $$;
 
--- MANTENER_PRODUCTO
 
---Adicionar producto + ropa
-CALL adicionar_producto(93010, 'Camiseta Deportiva', 'Camiseta dry-fit', 45000.00, 'Nike', 20, NULL);
-SELECT * FROM PRODUCTOS WHERE id_producto = 93010;
-CALL adicionar_producto_ropa(93010, 'M', 'Unisex', 'Camisa', 'Poliester');
-SELECT * FROM ROPA WHERE id_producto = 93010;
+-- Prueba 5: Registrar compra. Al comprar, el stock aumenta y el producto pasa a Disponible
+DO $$
+BEGIN
+    CALL registrar_compra.adicionar(97101, 97101, NULL);
+    CALL registrar_compra.adicionar_producto(97101, 97101, 10, 50000);
+    ASSERT (SELECT stock FROM PRODUCTOS WHERE id_producto = 97101) = 10, 'El stock no aumento a 10';
+    ASSERT (SELECT estado FROM PRODUCTOS WHERE id_producto = 97101) = 'Disponible', 'El producto no paso a Disponible';
+    RAISE NOTICE 'Prueba 5 OK: la compra 97101 subio el stock de la chaqueta a 10 y quedo Disponible';
+END $$;
 
---Adicionar producto + calzado
-CALL adicionar_producto(93011, 'Tenis Running', 'Tenis para correr', 25000.00, 'Adidas', 10, NULL);
-SELECT * FROM PRODUCTOS WHERE id_producto = 93011;
-CALL adicionar_producto_calzado(93011, 42.0, 'Hombre', 'Deportivo', 'Sintetico');
-SELECT * FROM CALZADO WHERE id_producto = 93011;
 
---Adicionar producto + accesorio
-CALL adicionar_producto(93012, 'Gorro Clasica', NULL, 35000.00, 'Puma', 30, NULL);
-SELECT * FROM PRODUCTOS WHERE id_producto = 93012;
-CALL adicionar_producto_accesorio(93012, 'Gorra', 'Algodon', NULL);
-SELECT * FROM ACCESORIOS WHERE id_producto = 93012;
+-- Prueba 6: Registrar venta. Se entrega en la ubicacion principal, descuenta el stock y se completa
+DO $$
+BEGIN
+    CALL registrar_venta.adicionar(97101, 97101, 'Transferencia', 'Domicilio', NULL, NULL);
+    CALL registrar_venta.adicionar_producto(97101, 97101, 4, 80000, 5000);
+    CALL registrar_venta.completar(97101);
+    ASSERT (SELECT id_ubicacion FROM VENTAS WHERE id_venta = 97101) = 97102, 'No se uso la ubicacion principal';
+    ASSERT (SELECT stock FROM PRODUCTOS WHERE id_producto = 97101) = 6, 'El stock no bajo a 6';
+    ASSERT (SELECT estado_venta FROM VENTAS WHERE id_venta = 97101) = 'Completada', 'La venta no quedo Completada';
+    RAISE NOTICE 'Prueba 6 OK: la venta 97101 se entrega en la ubicacion 97102, dejo el stock en 6 y quedo Completada';
+END $$;
 
--- Modificar producto
-CALL modificar_producto(50000.00, 25, 93010);
-SELECT * FROM PRODUCTOS WHERE id_producto = 93010;
 
--- REGISTAR_VENTA
-
--- Adicionar venta con productos
-CALL adicionar_venta(93010, 'Efectivo', 'Domicilio', NULL, 93010);
-SELECT * FROM VENTAS WHERE id_venta = 93010;
-CALL adicionar_detalle_venta(93010, 93010, 2, 50000.00, 5000.00);
-SELECT * FROM DETALLESDEVENTAS WHERE id_venta = 93010;
-CALL adicionar_detalle_venta(93010, 93012, 1, 35000.00, NULL);
--- stock 93010: 25-2=23
--- stock 93012: 30-1=29
-SELECT * FROM DETALLESDEVENTAS WHERE id_producto = 93012;
-
---Cancelar venta
---(adicionar una venta)
-CALL adicionar_venta(93011, 'Efectivo', 'Domicilio', NULL, 93010);
-CALL adicionar_detalle_venta(93011, 93011, 1, 25000.00, NULL);
--- stock 93011: 10-1=9
-SELECT id_producto, stock FROM PRODUCTOS WHERE id_producto = 93011;
-CALL cancelar_venta(93011);
--- stock 93011: 9+1=10
-
--- Asercion: verificar estado cancelada y stock devuelto
-SELECT id_venta, estado_venta FROM VENTAS WHERE id_venta = 93011;
-SELECT id_producto, stock FROM PRODUCTOS WHERE id_producto = 93011;
-
--- REGISTAR_COMPRA
-
--- Adicionar compra con productos
-CALL adicionar_compra(93010, NULL, 93010);
-SELECT id_compra, estado_compra, fecha_compra FROM COMPRAS WHERE id_compra = 93010;
-CALL adicionar_detalle_compra(93010, 93010, 15, 30000.00);
--- stock 93010: 23+15=38
-SELECT * FROM DETALLESDECOMPRAS WHERE id_producto = 93010;
-SELECT id_producto, stock FROM PRODUCTOS WHERE id_producto = 93010;
+-- Prueba 7: Registrar factura. El total se calcula con los productos de la venta: 4 * 80000 - 5000 = 315000
+DO $$
+BEGIN
+    CALL registrar_factura.adicionar_de_venta(97101, 97101, 'GUIA-97101', NULL);
+    ASSERT (SELECT total FROM FACTURAS WHERE id_factura = 97101) = 315000, 'El total no es 315000';
+    RAISE NOTICE 'Prueba 7 OK: la factura 97101 quedo Emitida con total %', (SELECT total FROM FACTURAS WHERE id_factura = 97101);
+END $$;
 
 
 
--- Cancelar compra
---(adicionar una compra)
-CALL adicionar_compra(93011, NULL, 93010);
-CALL adicionar_detalle_compra(93011, 93010, 5, 25000.00);
--- stock 93010: 38+5=43
-SELECT id_producto, stock FROM PRODUCTOS WHERE id_producto = 93010;
 
-CALL cancelar_compra(93011);
--- stock 93010: 43-5=38
--- Asercion: verificar estado cancelada y stock devuelto
-SELECT id_compra, estado_compra FROM COMPRAS WHERE id_compra = 93011;
-SELECT id_producto, stock FROM PRODUCTOS WHERE id_producto = 93010;
+-- CO4: ventas del cliente 97101 (debe mostrar la venta 97101 Completada con total 315000)
+BEGIN;
+SELECT registrar_venta.consultar_ventas_cliente(97101);
+FETCH ALL IN cur_ventas_cliente;
+COMMIT;
 
-
--- REGISTRAR_FACTURA
-
--- Facturar venta
-CALL adicionar_factura(93010, 'Emitida', NULL);
--- fecha_emision asignada por trigger T5
-CALL adicionar_factura_venta(93010, 93010, 'GUIA-OK-001');
--- total calculado por trigger T11
-SELECT * FROM FACTURAS WHERE id_factura = 93010;
-SELECT * FROM FACTURASVENTA WHERE id_factura = 93010;
-
-
--- Facturar compra
-CALL adicionar_factura(93011, 'Emitida', NULL);
--- fecha_emision asignada por trigger T5
-CALL adicionar_factura_compra(93011, 93010, 'REM-OK-001');
--- total calculado por trigger T12
-SELECT * FROM FACTURAS WHERE id_factura = 93011;
-SELECT * FROM FACTURASCOMPRA WHERE id_factura = 93011;
+-- CO5: detalle de la venta 97101 (producto, direccion de entrega y factura)
+BEGIN;
+SELECT registrar_venta.consultar_venta(97101);
+FETCH ALL IN cur_venta;
+COMMIT;
