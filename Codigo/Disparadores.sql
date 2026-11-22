@@ -230,7 +230,7 @@ BEGIN
         FOR v_detalle IN SELECT id_producto, cantidad FROM DETALLESDECOMPRAS WHERE id_compra = NEW.id_compra
         LOOP
             -- tg.restringe: no se puede cancelar si esas unidades ya fueron vendidas
-            SELECT stock INTO v_stock FROM PRODUCTOS WHERE id_producto = v_detalle.id_producto;
+            SELECT stock INTO v_stock FROM PRODUCTOS WHERE id_producto = v_detalle.id_producto FOR UPDATE;
             IF v_stock < v_detalle.cantidad THEN
                 RAISE EXCEPTION USING MESSAGE = 'No se puede cancelar la compra porque sus unidades ya fueron vendidas.',
                 ERRCODE = 'A0010';
@@ -397,7 +397,7 @@ BEGIN
     END IF;
 
     -- tg.restringe: no se pueden vender mas unidades de las que hay en stock
-    SELECT stock INTO v_stock FROM PRODUCTOS WHERE id_producto = NEW.id_producto;
+    SELECT stock INTO v_stock FROM PRODUCTOS WHERE id_producto = NEW.id_producto FOR UPDATE;
     IF v_stock < NEW.cantidad THEN
         RAISE EXCEPTION USING MESSAGE = 'No hay stock suficiente del producto para esta venta.',
         ERRCODE = 'A0019';

@@ -6,7 +6,7 @@ CREATE TABLE CLIENTES(
     nombre          VARCHAR(50)     NOT NULL,
     telefono        VARCHAR(15)     NOT NULL,
     correo          VARCHAR(100)    NULL, -- UK
-    fecha_registro  TIMESTAMP       NOT NULL,
+    fecha_registro  TIMESTAMP       NOT NULL  DEFAULT CURRENT_TIMESTAMP,
     notas           VARCHAR(200)    NULL
 );
 
@@ -15,8 +15,8 @@ CREATE TABLE PROVEEDORES(
     id_proveedor    INTEGER         NOT NULL,
     nombre          VARCHAR(100)    NOT NULL,
     telefono        VARCHAR(15)     NOT NULL,
-    correo          VARCHAR(100)    NULL  DEFAULT CURRENT_TIMESTAMP, -- UK
-    fecha_registro  TIMESTAMP       NOT NULL,
+    correo          VARCHAR(100)    NULL, -- UK
+    fecha_registro  TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     id_ubicacion    INTEGER         NULL        -- FK -> UBICACIONES (UK: maximo un proveedor por ubicacion)
 );
 
@@ -110,7 +110,7 @@ CREATE TABLE FACTURAS(
     id_factura      INTEGER         NOT NULL,
     fecha_emision   TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     total           NUMERIC(12,2)   NOT NULL,
-    estado_factura  VARCHAR(20)     NOT NULL NULL DEFAULT 'Emitida',
+    estado_factura  VARCHAR(20)     NOT NULL DEFAULT 'Emitida',
     observaciones   VARCHAR(200)    NULL
 );
 
